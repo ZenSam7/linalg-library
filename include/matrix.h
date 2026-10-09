@@ -26,7 +26,7 @@ namespace linalg {
         inline explicit Matrix(size_t rows) : Matrix(rows, 1) {};
         Matrix(size_t rows, size_t columns);
         Matrix(const Matrix& matrix); // копирования
-        Matrix(     Matrix&& matrix); // перемещения
+        Matrix(     Matrix&& matrix) noexcept; // перемещения
         // для инициализации сразу с данными
         Matrix(std::initializer_list<double> list);                        // одномерный
         Matrix(std::initializer_list<std::initializer_list<double>> list); // двумерный
@@ -50,8 +50,8 @@ namespace linalg {
         void reserve(size_t n);
         void shrink_to_fit();
         void clear();
-        friend void swap(Matrix& matrix1, Matrix& matrix2); // глобальная функция
-        void swap(Matrix& matrix2);                         // метод
+        friend void swap(Matrix& matrix1, Matrix& matrix2) noexcept; // глобальная функция
+        void swap(Matrix& matrix2)                         noexcept; // метод
 
         // всякого рода функции
         double norm()  const noexcept;
@@ -71,7 +71,7 @@ namespace linalg {
 
         /*      операторы       */
 
-        Matrix& operator=(const Matrix& other) noexcept; // копирующее присваивание
+        Matrix& operator=(const Matrix& other); // присваивание копирующее → потенциальный bad_alloc
         Matrix& operator=(     Matrix&& other) noexcept; // перемещающее присваивание
               double& operator()(size_t row, size_t col)      ;
         const double& operator()(size_t row, size_t col) const;  // в return также может быть double
