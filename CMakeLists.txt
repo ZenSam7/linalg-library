@@ -8,3 +8,7 @@ add_library(linalg
         include/matrix.h
         include/exceptions.h
 )
+
+target_include_directories(linalg PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
