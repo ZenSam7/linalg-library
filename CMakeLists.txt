@@ -6,4 +6,5 @@ set(CMAKE_CXX_STANDARD 14)
 add_library(linalg
         source/matrix.cpp
         include/matrix.h
+        include/exceptions.h
 )

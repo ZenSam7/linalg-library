@@ -1,10 +1,10 @@
 #include "../include/matrix.h"
+#include "../include/exceptions.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,14 +20,16 @@ namespace {
     // rows * columns с защитой от переполнения size_t
     size_t checked_size(size_t rows, size_t columns) {
         if (columns != 0 && rows > std::numeric_limits<size_t>::max() / columns)
-            throw std::runtime_error("matrix size is too large");
+            throw InvalidShape("размерчик слишком большой");
         return rows * columns;
     }
 
-    // выделяет память на capacity элементов и копирует туда первые count (count <= capacity)
+    // выделяет новую память на capacity элементов и копирует туда первые count (count <= capacity)
     // если new бросит исключение, то ничего не утекло и ничего не изменилось
     double* clone_block(const double* src, size_t count, size_t capacity) {
-        double* ptr = new double[capacity];
+        if (count > capacity)
+            throw OutOfMatrix();
+        auto* ptr = new double[capacity];
         std::copy(src, src + count, ptr);
         return ptr;
     }
@@ -52,7 +54,7 @@ namespace {
 
     void require_same_shape(const Matrix& a, const Matrix& b) {
         if (a.rows() != b.rows() || a.columns() != b.columns())
-            throw std::runtime_error("matrix shapes do not match");
+            throw ShapesMismatch();
     }
 
     Matrix make_identity(size_t n) {
@@ -168,11 +170,11 @@ Matrix::Matrix(std::initializer_list<double> list) {
 Matrix::Matrix(std::initializer_list<std::initializer_list<double>> list) {
     size_t rows = list.size();
     size_t columns = rows ? list.begin()->size() : 0;
-    for (const auto& row : list)                    // сначала проверка, потом выделение памяти
+    for (const auto& row : list)    // сначала проверка, потом выделение памяти
         if (row.size() != columns)
-            throw std::runtime_error("rows of initializer list have different length");
+            throw InvalidShape("строки в списке инициализации разной длины");
 
-    size_t n = rows * columns;                      // переполнения быть не может: столько элементов уже лежит в памяти
+    size_t n = rows * columns;  // переполнения быть не может: столько элементов уже лежит в памяти
     if (n) {
         _data_ptr = new double[n];
         double* dst = _data_ptr;
@@ -188,7 +190,7 @@ Matrix& Matrix::operator=(const Matrix& other) {
     if (this == &other) return *this;
     size_t n = other.size();
     if (n > _capacity) {                            // только тут перевыделяем (по заданию)
-        double* new_ptr = new double[n];            // если бросит, то *this остался нетронутым
+        auto* new_ptr = new double[n];            // если бросит, то *this остался нетронутым
         delete[] _data_ptr;
         _data_ptr = new_ptr;
         _capacity = n;
@@ -213,7 +215,7 @@ Matrix& Matrix::operator=(Matrix&& other) noexcept {
 void Matrix::reshape(size_t rows, size_t columns) {
     size_t n = checked_size(rows, columns);
     if (n > _capacity) {
-        double* new_ptr = new double[n];
+        auto* new_ptr = new double[n];
         delete[] _data_ptr;
         _data_ptr = new_ptr;
         _capacity = n;
@@ -257,23 +259,28 @@ void Matrix::swap(Matrix& other) noexcept {
 
 double& Matrix::operator()(size_t row, size_t col) {
     if (row >= _rows || col >= _columns)
-        throw std::runtime_error("matrix index out of range");
+        throw OutOfMatrix();
     return _data_ptr[row * _columns + col];
 }
 
 const double& Matrix::operator()(size_t row, size_t col) const {
     if (row >= _rows || col >= _columns)
-        throw std::runtime_error("matrix index out of range");
+        throw OutOfMatrix();
     return _data_ptr[row * _columns + col];
 }
 
 
 /*      вычислительные методы      */
 
-double Matrix::norm() const noexcept {              // фробениус: sqrt(сумма квадратов)
+// sqrt(сумма квадратов)
+double Matrix::norm() const noexcept {
     double sum = 0.0;
+    for (double p : *this)
+        sum += p * p;
+    /* то же, что:
     for (const double* p = begin(); p != end(); ++p)
         sum += *p * *p;
+    */
     return std::sqrt(sum);
 }
 
@@ -289,7 +296,7 @@ double Matrix::trace() const noexcept {
 
 double Matrix::det() const {
     if (_rows != _columns)
-        throw std::runtime_error("determinant needs a square matrix");
+        throw MatrixMustBeSquared();
     Matrix tmp(*this);                              // работаем с копией, this не меняем
     bool odd_swaps = false;
     size_t rank = forward_pass(tmp._data_ptr, _rows, _columns,
@@ -430,7 +437,7 @@ namespace linalg {
     // это кэш-дружелюбно и компилятор может векторизовать (в отличие от классического i-j-k, где b читается по столбцу)
     Matrix operator*(const Matrix& matrix1, const Matrix& matrix2) {
         if (matrix1.columns() != matrix2.rows())
-            throw std::runtime_error("matrix shapes are incompatible for multiplication");
+            throw ShapesMismatch();
         const size_t n = matrix1.rows(), m = matrix1.columns(), p = matrix2.columns();
         Matrix result;
         result.reshape(n, p);
@@ -463,7 +470,7 @@ namespace linalg {
 
     Matrix concatenate(const Matrix& matrix1, const Matrix& matrix2) {
         if (matrix1.rows() != matrix2.rows())
-            throw std::runtime_error("matrices must have the same number of rows to concatenate");
+            throw ShapesMismatch("количество строк разное");
         const size_t rows = matrix1.rows();
         const size_t c1 = matrix1.columns(), c2 = matrix2.columns();
         Matrix result;
@@ -483,19 +490,19 @@ namespace linalg {
     // (наивный вариант на больших матрицах пишет в память с шагом rows и постоянно мажет мимо кэша)
     Matrix transpose(const Matrix& matrix) {
         constexpr size_t block = 32;
-        const size_t rows = matrix.rows(), columns = matrix.columns();
+        const size_t rows = matrix.rows(), cols = matrix.columns();
         Matrix result;
-        result.reshape(columns, rows);
+        result.reshape(cols, rows);
 
         const double* src = matrix.begin();
         double* dst = result.begin();
         for (size_t ib = 0; ib < rows; ib += block) {
             const size_t i_end = std::min(ib + block, rows);
-            for (size_t jb = 0; jb < columns; jb += block) {
-                const size_t j_end = std::min(jb + block, columns);
+            for (size_t jb = 0; jb < cols; jb += block) {
+                const size_t j_end = std::min(jb + block, cols);
                 for (size_t i = ib; i < i_end; ++i)
                     for (size_t j = jb; j < j_end; ++j)
-                        dst[j * rows + i] = src[i * columns + j];
+                        dst[j * rows + i] = src[i * cols + j];
             }
         }
         return result;
@@ -507,9 +514,9 @@ namespace linalg {
     Matrix solve(const Matrix& matrix, const Matrix& vector) {
         const size_t n = matrix.rows();
         if (matrix.columns() != n)
-            throw std::runtime_error("system matrix must be square");
+            throw MatrixMustBeSquared();
         if (vector.rows() != n)
-            throw std::runtime_error("right-hand side has wrong number of rows");
+            throw ShapesMismatch("вектор не подходит по размеру для матрицы");
         const size_t k = vector.columns();
         const size_t width = n + k;
 
@@ -521,7 +528,7 @@ namespace linalg {
         forward_pass(a, n, width, tol, odd_swaps);
         for (size_t i = 0; i < n; ++i)              // нет ведущего на диагонали = A вырождена
             if (std::fabs(a[i * width + i]) <= tol)
-                throw std::runtime_error("matrix is singular");
+                throw MatrixIsSingular();
         backward_pass(a, n, width, tol);
 
         Matrix result;
@@ -534,14 +541,14 @@ namespace linalg {
 
     Matrix invert(const Matrix& matrix) {           // A^-1 = решение A*X = E
         if (matrix.rows() != matrix.columns())
-            throw std::runtime_error("only square matrix can be inverted");
+            throw MatrixMustBeSquared();
         return solve(matrix, make_identity(matrix.rows()));
     }
 
-    // бинарное возведение в степень: O(log p) умножений вместо p
+    // быстрое возведение в степень: O(log p) умножений вместо p
     Matrix power(const Matrix& matrix, int exponent) {
         if (matrix.rows() != matrix.columns())
-            throw std::runtime_error("only square matrix can be raised to a power");
+            throw MatrixMustBeSquared();
         if (exponent == 0) return make_identity(matrix.rows());
 
         long long e = exponent;                     // long long, чтобы -INT_MIN не переполнился
