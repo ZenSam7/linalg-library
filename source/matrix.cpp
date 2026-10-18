@@ -17,7 +17,7 @@ using linalg::DOUBLE_EPSILON;
 
 namespace {
 
-    // rows * columns с защитой от переполнения size_t
+    // вычисляем rows * columns с защитой от переполнения size_t
     size_t checked_size(size_t rows, size_t columns) {
         if (columns != 0 && rows > std::numeric_limits<size_t>::max() / columns)
             throw InvalidShape("размерчик слишком большой");
@@ -58,10 +58,10 @@ namespace {
     }
 
     Matrix make_identity(size_t n) {
-        Matrix result(n, n);                        // нули
+        Matrix result(n, n);        // нули
         double* ptr = result.begin();
         for (size_t i = 0; i < n; ++i)
-            ptr[i * (n + 1)] = 1.0;                 // диагональ
+            ptr[i * (n + 1)] = 1.0; // диагональ
         return result;
     }
 
@@ -130,6 +130,8 @@ namespace {
 
 /*      конструкторы, деструктор, присваивания      */
 
+// у нас в полях будет не мусор т.к. в заголовочном инициализируемся
+// нулями, значения которых и использует default
 Matrix::Matrix() = default;
 
 Matrix::~Matrix() { delete[] _data_ptr; }
@@ -149,8 +151,9 @@ void Matrix::_reallocate(size_t new_capacity, bool keep_data) {
 
 Matrix::Matrix(size_t rows, size_t columns) {
     size_t n = checked_size(rows, columns);
-    if (n) _data_ptr = new double[n]();             // () = value-init, т.е. нули
-    _rows = rows;                                   // поля меняем только после успешного new
+    if (n) _data_ptr = new double[n]();  // () = value-init, т.е. нули
+    // поля меняются только после успешного new
+    _rows = rows;
     _columns = columns;
     _capacity = n;
 }
@@ -167,7 +170,7 @@ Matrix::Matrix(Matrix&& other) noexcept
         : _data_ptr(std::exchange(other._data_ptr, nullptr)),
           _rows(std::exchange(other._rows, 0)),
           _columns(std::exchange(other._columns, 0)),
-          _capacity(std::exchange(other._capacity, 0)) {}
+          _capacity(std::exchange(other._capacity, 0)) {/*спиздили*/}
 
 Matrix::Matrix(std::initializer_list<double> list) {
     size_t n = list.size();
@@ -175,7 +178,7 @@ Matrix::Matrix(std::initializer_list<double> list) {
         _data_ptr = new double[n];
         std::copy(list.begin(), list.end(), _data_ptr);
     }
-    _rows = n;                                      // столбец
+    _rows = n; // столбец
     _columns = 1;
     _capacity = n;
 }
@@ -187,11 +190,13 @@ Matrix::Matrix(std::initializer_list<std::initializer_list<double>> list) {
         if (row.size() != columns)
             throw InvalidShape("строки в списке инициализации разной длины");
 
-    size_t n = rows * columns;  // переполнения быть не может: столько элементов уже лежит в памяти
+    // checked_size не нужен: переполнения быть не может (столько элементов уже лежит в памяти)
+    size_t n = rows * columns;
     if (n) {
         _data_ptr = new double[n];
         double* dst = _data_ptr;
         for (const auto& row : list)
+            // копируем т.к. initializer_list это const double*, а у нас _data_ptr не const
             dst = std::copy(row.begin(), row.end(), dst);
     }
     _rows = rows;
@@ -199,6 +204,7 @@ Matrix::Matrix(std::initializer_list<std::initializer_list<double>> list) {
     _capacity = n;
 }
 
+// копирующий
 Matrix& Matrix::operator=(const Matrix& other) {
     if (this == &other) return *this;
     size_t n = other.size();
@@ -211,16 +217,28 @@ Matrix& Matrix::operator=(const Matrix& other) {
 }
 
 Matrix& Matrix::operator=(Matrix&& other) noexcept {
-    Matrix tmp(std::move(other));                   // забираем ресурсы other (самоприсваивание тоже безопасно)
-    swap(tmp);                                      // наши старые ресурсы уйдут в tmp и умрут вместе с ним
+    // инициализируем tmp по rvalye (крадём ресурсы у other), см метод выше (обнуление other там же)
+    Matrix tmp(std::move(other));
+    swap(tmp);  // свапаем поля *this и other нашим методом swap
     return *this;
-}
+}   // вот тут tmp с нашими старыми данными умирает (неявное delete[] _date_ptr старых данных)
+/* хотя намного понятнее написать просто:
+   if (this != &other) {
+        delete[] _data_ptr;
+        _data_ptr = std::exchange(other._data_ptr, nullptr);
+        _rows     = std::exchange(other._rows, 0);
+        _columns  = std::exchange(other._columns, 0);
+        _capacity = std::exchange(other._capacity, 0);
+    }
+    return *this;
+ (любитель поусложнять, да пописать многострочные комментарии, да, уж простите) */
+
 
 
 /*      интерфейс модификации      */
 
 // после reshape содержимое не определено (по заданию старые элементы можно не сохранять),
-// поэтому новую память не зануляем, это экономит проход по всему массиву
+// поэтому новую память не зануляем, (это экономит проход по всему массиву)
 void Matrix::reshape(size_t rows, size_t columns) {
     size_t n = checked_size(rows, columns);
     if (n > _capacity)
@@ -234,6 +252,7 @@ void Matrix::reserve(size_t n) {
     if (n > _capacity) _reallocate(n, true);
 }
 
+// обрезаем массив до size() ("перевыделяет память в соответствии с текущим размером матрицы")
 void Matrix::shrink_to_fit() {
     if (size() != _capacity)  // size() > _capacity
         _reallocate(size(), true);
@@ -242,7 +261,7 @@ void Matrix::shrink_to_fit() {
 // capacity и память не трогаем, мы их в процессе дальнейшей
 // работы с матрицей сами перезатрём новыми данными (или перевыделим память)
 void Matrix::clear() {
-    _rows = 0;                                      // вместимость и память не трогаем
+    _rows = 0;
     _columns = 0;
 }
 
@@ -256,17 +275,19 @@ void Matrix::swap(Matrix& other) noexcept {
 
 /*      доступ к элементам      */
 
-double& Matrix::operator()(size_t row, size_t col) {
-    if (row >= _rows || col >= _columns)
-        throw OutOfMatrix();
-    return _data_ptr[row * _columns + col];
-}
-
 const double& Matrix::operator()(size_t row, size_t col) const {
     if (row >= _rows || col >= _columns)
         throw OutOfMatrix();
     return _data_ptr[row * _columns + col];
 }
+
+double& Matrix::operator()(size_t row, size_t col) {
+    /* if (row >= _rows || col >= _columns)
+        throw OutOfMatrix();
+    return _data_ptr[row * _columns + col]; */
+
+    // чтобы не копировать те же 3 строчки что в константном операторе написал эту хрень
+    // (да, я люблю DRY) (так же из-за as_const требуем c++17)
 
     // 0) *this внутри неконстантного метода имеет тип Matrix&
     // 1) Matrix& → const Matrix&
