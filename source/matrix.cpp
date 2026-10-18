@@ -134,6 +134,19 @@ Matrix::Matrix() = default;
 
 Matrix::~Matrix() { delete[] _data_ptr; }
 
+// служебная функция чтобы не писать постоянно 4 строчки
+// порядок важен: сначала new (может бросить bad_alloc, тогда *this цел), потом delete[]
+// keep_data = true копирует size() старых элементов (нужно size() <= new_capacity)
+void Matrix::_reallocate(size_t new_capacity, bool keep_data) {
+    double* new_ptr = nullptr;
+    if (new_capacity)
+        new_ptr = keep_data ? clone_block(_data_ptr, size(), new_capacity)
+                            : new double[new_capacity];
+    delete[] _data_ptr;
+    _data_ptr = new_ptr;
+    _capacity = new_capacity;
+}
+
 Matrix::Matrix(size_t rows, size_t columns) {
     size_t n = checked_size(rows, columns);
     if (n) _data_ptr = new double[n]();             // () = value-init, т.е. нули
@@ -189,12 +202,8 @@ Matrix::Matrix(std::initializer_list<std::initializer_list<double>> list) {
 Matrix& Matrix::operator=(const Matrix& other) {
     if (this == &other) return *this;
     size_t n = other.size();
-    if (n > _capacity) {                            // только тут перевыделяем (по заданию)
-        auto* new_ptr = new double[n];            // если бросит, то *this остался нетронутым
-        delete[] _data_ptr;
-        _data_ptr = new_ptr;
-        _capacity = n;
-    }
+    if (n > _capacity)
+        _reallocate(n); // если бросит ошибку, то *this останется нетронутым
     std::copy(other.begin(), other.end(), _data_ptr);
     _rows = other._rows;
     _columns = other._columns;
@@ -214,34 +223,24 @@ Matrix& Matrix::operator=(Matrix&& other) noexcept {
 // поэтому новую память не зануляем, это экономит проход по всему массиву
 void Matrix::reshape(size_t rows, size_t columns) {
     size_t n = checked_size(rows, columns);
-    if (n > _capacity) {
-        auto* new_ptr = new double[n];
-        delete[] _data_ptr;
-        _data_ptr = new_ptr;
-        _capacity = n;
-    }
+    if (n > _capacity)
+        _reallocate(n);
     _rows = rows;
     _columns = columns;
 }
 
 // как у std::vector: только увеличивает вместимость, элементы сохраняет
 void Matrix::reserve(size_t n) {
-    if (n <= _capacity) return;
-    double* new_ptr = clone_block(_data_ptr, size(), n);
-    delete[] _data_ptr;
-    _data_ptr = new_ptr;
-    _capacity = n;
+    if (n > _capacity) _reallocate(n, true);
 }
 
 void Matrix::shrink_to_fit() {
-    size_t n = size();
-    if (n == _capacity) return;
-    double* new_ptr = n ? clone_block(_data_ptr, n, n) : nullptr;
-    delete[] _data_ptr;
-    _data_ptr = new_ptr;
-    _capacity = n;
+    if (size() != _capacity)  // size() > _capacity
+        _reallocate(size(), true);
 }
 
+// capacity и память не трогаем, мы их в процессе дальнейшей
+// работы с матрицей сами перезатрём новыми данными (или перевыделим память)
 void Matrix::clear() {
     _rows = 0;                                      // вместимость и память не трогаем
     _columns = 0;
@@ -269,6 +268,13 @@ const double& Matrix::operator()(size_t row, size_t col) const {
     return _data_ptr[row * _columns + col];
 }
 
+    // 0) *this внутри неконстантного метода имеет тип Matrix&
+    // 1) Matrix& → const Matrix&
+    // 2) (row, col) от константного оператора, вернёт const double&
+    // 3) const double& → просто double&
+    // (изначально this неконстантный так то логика не нарушена от снятия const)
+    return const_cast<double&>(static_cast<const Matrix&>(*this)(row, col));
+}
 
 /*      вычислительные методы      */
 
@@ -366,7 +372,7 @@ Matrix& Matrix::operator*=(double scalar) {
 }
 
 
-/*      свободные функции и операторы (friend)      */
+/*      свободные функции и операторы (которые friend)      */
 
 namespace linalg {
 

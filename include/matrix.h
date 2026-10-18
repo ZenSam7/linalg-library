@@ -16,6 +16,9 @@ namespace linalg {
         size_t _rows = 0, _columns = 0;
         size_t _capacity = 0;
 
+        // служебная функция чтобы не писать постоянно 4 строчки
+        void _reallocate(size_t new_capacity, bool keep_data=false);
+
     public:
 
         /*      разного рода конструкторы и деструктор      */
