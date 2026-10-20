@@ -3,10 +3,13 @@ project(linalg LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 
+# рекурсивно добавляем все файлы
+file(GLOB sources CONFIGURE_DEPENDS "source/*.cpp")
+file(GLOB includes CONFIGURE_DEPENDS "include/*.h")
+
 add_library(linalg
-        source/matrix.cpp
-        include/matrix.h
-        include/exceptions.h
+        ${sources}
+        ${includes}
 )
 
 target_include_directories(linalg PUBLIC

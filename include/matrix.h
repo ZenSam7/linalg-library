@@ -18,6 +18,8 @@ namespace linalg {
 
         // служебная функция чтобы не писать постоянно 4 строчки
         void _reallocate(size_t new_capacity, bool keep_data=false);
+        // вычисляем rows * columns с защитой от переполнения size_t
+        size_t _checked_size(size_t rows, size_t columns);
 
     public:
 
