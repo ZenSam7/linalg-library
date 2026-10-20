@@ -1,5 +1,5 @@
-#include "../include/matrix.h"
-#include "../include/exceptions.h"
+#include <matrix.h>
+#include <exceptions.h>
 
 #include <algorithm>
 #include <cmath>

@@ -38,11 +38,11 @@ namespace linalg {
         /*      api      */
 
         // доступ к полям, для согласованности (хоть и в inline необходимости и нету)
-        inline bool    empty()    const noexcept { return size() == 0;};
-        inline size_t  rows()     const noexcept { return _rows; };
-        inline size_t  columns()  const noexcept { return _columns; }
-        inline size_t  capacity() const noexcept { return _capacity; }
-        inline size_t  size()     const noexcept { return _rows * _columns; }
+        inline bool    empty()       const noexcept { return size() == 0;};
+        inline size_t  rows()        const noexcept { return _rows; };
+        inline size_t  columns()     const noexcept { return _columns; }
+        inline size_t  capacity()    const noexcept { return _capacity; }
+        inline size_t  size()        const noexcept { return _rows * _columns; }
         inline double* begin()             noexcept { return _data_ptr; }
         inline double* end()               noexcept { return _data_ptr + _rows*_columns; }
         inline const double* begin() const noexcept { return _data_ptr; }
@@ -78,6 +78,7 @@ namespace linalg {
         Matrix& operator=(     Matrix&& other) noexcept; // перемещающее присваивание
               double& operator()(size_t row, size_t col)      ;
         const double& operator()(size_t row, size_t col) const;  // в return также может быть double
+        // std::ostream& не const т.к. внутри него буфер
         friend std::ostream& operator<<(std::ostream& to_print, const Matrix& matrix);
 
         // арифметика
