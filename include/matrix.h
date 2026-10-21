@@ -55,8 +55,8 @@ namespace linalg {
         void reserve(size_t n);
         void shrink_to_fit();
         void clear();
-        friend void swap(Matrix& matrix1, Matrix& matrix2) noexcept; // глобальная функция
-        void swap(Matrix& matrix2)                         noexcept; // метод
+        friend void swap(Matrix& matrix1, Matrix& matrix2) noexcept { matrix1.swap(matrix2); }; // глобальная функция
+        void swap(Matrix& matrix2) noexcept; // метод
 
         // всякого рода функции
         double norm()  const noexcept;
@@ -71,7 +71,7 @@ namespace linalg {
         friend Matrix invert     (const Matrix& matrix);
         friend Matrix power      (const Matrix& matrix, int power);  // степень в т.ч. отрицательная
         friend Matrix solve      (const Matrix& matrix, const Matrix& vector);
-        Matrix& T() { return *this=transpose(*this); }; // так удобнее
+        Matrix& T() { return *this=transpose(*this); }; // так удобнее (да. оно создаёт лишнюю временную таблицу, но похуй)
 
 
         /*      операторы       */

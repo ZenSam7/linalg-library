@@ -35,7 +35,7 @@ double& Matrix::operator()(size_t row, size_t col) {
     return _data_ptr[row * _columns + col]; */
 
     // чтобы не копировать те же 3 строчки что в константном операторе написал эту хрень
-    // (да, я люблю DRY) (так же из-за as_const требуем c++17)
+    // (да, я люблю DRY)
 
     // 0) *this внутри неконстантного метода имеет тип Matrix&
     // 1) Matrix& → const Matrix&
@@ -50,7 +50,7 @@ double& Matrix::operator()(size_t row, size_t col) {
 namespace linalg {
     Matrix Matrix::operator-() const {
         Matrix result;
-        result.reshape(_rows, _columns);                // без зануления, всё равно перезапишем
+        result.reshape(_rows, _columns); // без зануления, всё равно перезапишем
         double* dst = result._data_ptr;
         const double* src = _data_ptr;
         for (size_t i = 0, n = size(); i < n; ++i)
@@ -59,7 +59,7 @@ namespace linalg {
     }
 
     Matrix& Matrix::operator+=(const Matrix& other) {
-        require_same_shape(*this, other);               // исключение до любых изменений
+        require_same_shape(*this, other); // исключение до любых изменений
         double* dst = _data_ptr;
         const double* src = other._data_ptr;
         for (size_t i = 0, n = size(); i < n; ++i)
@@ -68,7 +68,7 @@ namespace linalg {
     }
 
     Matrix& Matrix::operator-=(const Matrix& other) {
-        require_same_shape(*this, other);
+        require_same_shape(*this, other); // исключение до любых изменений
         double* dst = _data_ptr;
         const double* src = other._data_ptr;
         for (size_t i = 0, n = size(); i < n; ++i)
@@ -83,26 +83,28 @@ namespace linalg {
         return *this;
     }
 
-
     std::ostream& operator<<(std::ostream& to_print, const Matrix& matrix) {
         if (matrix.empty()) return to_print;
         const size_t rows = matrix.rows(), columns = matrix.columns();
 
         // 1 проход: превращаем элементы в строки и ищем ширину каждого столбца
         std::vector<std::string> cells;
-        cells.reserve(matrix.size());
+        cells.reserve(matrix.size());  // сюда сложим все элементы-строки
         std::vector<size_t> widths(columns, 0);
-        std::ostringstream buffer;                  // формат (точность и т.д.) берём у выходного потока
-        buffer.flags(to_print.flags());
-        buffer.precision(to_print.precision());
-        buffer.imbue(to_print.getloc());
+        std::ostringstream buffer;   // формат берём у выходного потока
 
+        buffer.flags(to_print.flags());          // копируем флаги
+        buffer.precision(to_print.precision());  // копируем точность вывода
+        buffer.imbue(to_print.getloc());         // копируем локаль
+
+        // записываем и сами строки и их ширину
         const double* p = matrix.begin();
         for (size_t i = 0; i < rows; ++i) {
             for (size_t j = 0; j < columns; ++j, ++p) {
                 buffer.str("");
                 buffer << *p;
                 cells.push_back(buffer.str());
+
                 widths[j] = std::max(widths[j], cells.back().size());
             }
         }
@@ -110,15 +112,14 @@ namespace linalg {
         // 2 проход: печать с выравниванием по правому краю; после каждой строки '\n'
         size_t idx = 0;
         for (size_t i = 0; i < rows; ++i) {
-            to_print.put('|');
+            to_print << '|';
             for (size_t j = 0; j < columns; ++j, ++idx) {
-                if (j) to_print.put(' ');
+                if (j) to_print << ' ';  // пробел после палочки
                 for (size_t pad = widths[j] - cells[idx].size(); pad > 0; --pad)
-                    to_print.put(' ');
+                    to_print << ' ';
                 to_print << cells[idx];
             }
-            to_print.put('|');
-            to_print.put('\n');
+            to_print << '|' << '\n';
         }
         return to_print;
     }
@@ -145,26 +146,35 @@ namespace linalg {
         return result;
     }
 
-    // порядок циклов i-k-j: внутренний цикл идёт подряд по строкам b и result,
-    // это кэш-дружелюбно и компилятор может векторизовать (в отличие от классического i-j-k, где b читается по столбцу)
+    // порядок циклов i-k-j: внутренний цикл идёт подряд по строкам matrix2 и result,
+    // это кэш-дружелюбно и компилятор может векторизовать )см мой конспектик SIMD)
+    // (в отличие от классического i-j-k, где matrix2 читается по столбцу)
+    // т.е. тут мы
     Matrix operator*(const Matrix& matrix1, const Matrix& matrix2) {
         if (matrix1.columns() != matrix2.rows())
             throw ShapesMismatch();
-        const size_t n = matrix1.rows(), m = matrix1.columns(), p = matrix2.columns();
+        const size_t row1 = matrix1.rows(), col1 = matrix1.columns(), col2 = matrix2.columns();
         Matrix result;
-        result.reshape(n, p);
+        result.reshape(row1, col2);
+        // заполняем нулями (потом будем прибавлять, а не перезаписывать)
+        std::fill(result.begin(), result.begin() + result.size(), 0.0);
 
-        const double* a = matrix1.begin();
-        const double* b = matrix2.begin();
-        double* c = result.begin();
-        for (size_t i = 0; i < n; ++i) {
-            double* c_row = c + i * p;
-            std::fill(c_row, c_row + p, 0.0);
-            for (size_t k = 0; k < m; ++k) {
-                const double a_ik = a[i * m + k];
-                const double* b_row = b + k * p;
-                for (size_t j = 0; j < p; ++j)
-                    c_row[j] += a_ik * b_row[j];
+        const double* m1 = matrix1.begin();
+        const double* m2 = matrix2.begin();
+        double* dst = result.begin();
+
+        for (size_t i = 0; i < row1; ++i) {
+            // записываем в dst по строкам
+            double* dst_row = dst + i * col2;
+
+            for (size_t k = 0; k < col1; ++k) {
+                // внешний цикл по КОЛОНКАМ первой матрицы
+
+                const double m1_ik = m1[i * col1 + k]; // matrix(i, k) элемент
+                const double* m2_row = m2 + k * col2;  // k'я строка
+                for (size_t j = 0; j < col2; ++j)
+                    // внутренний по СТРОКАМ (в кеш загружаются строки)
+                    dst_row[j] += m1_ik * m2_row[j];
             }
         }
         return result;

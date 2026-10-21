@@ -12,6 +12,7 @@ add_library(linalg
         ${includes}
 )
 
+# для возможности подключать хедеры либы
 target_include_directories(linalg PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
