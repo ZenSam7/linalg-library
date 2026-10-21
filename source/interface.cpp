@@ -1,5 +1,5 @@
-#include <matrix.h>
-#include <exceptions.h>
+#include "matrix.h"
+#include "exceptions.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +12,7 @@ using linalg::DOUBLE_EPSILON;
 /*      внутренние вспомогательные функции (видны только в этом файле)      */
 namespace {
 
+    // максимальный элемент массива по модулю
     double max_abs(const double* ptr, size_t n) noexcept {
         double result = 0.0;
         for (size_t i = 0; i < n; ++i)
@@ -36,32 +37,47 @@ namespace {
     // выбор максимума нужен для устойчивости: делить на маленькое число = взрыв погрешности
     // приводит a (rows x cols) к ступенчатому виду, возвращает ранг
     // odd_swaps переключается на каждую перестановку строк (нужно для знака определителя)
-    size_t forward_pass(double* a, size_t rows, size_t cols, double tol, bool& odd_swaps) noexcept {
-        size_t rank = 0;                            // он же номер текущей строки-ведущей
+    size_t forward_pass(double* arr, size_t rows, size_t cols, double zero_bound, bool& odd_swaps) noexcept {
+        size_t rank = 0;  // он же номер текущей ведущей строки
         for (size_t col = 0; col < cols && rank < rows; ++col) {
-            size_t best = rank;
-            double best_abs = std::fabs(a[rank * cols + col]);
+            size_t best = rank;  // № строки с максимальным элементом
+            double best_abs = std::fabs(arr[rank * cols + col]);
+            // выбираем максимум из столбца (из строк ниже ведущего элемента)
             for (size_t r = rank + 1; r < rows; ++r) {
-                double v = std::fabs(a[r * cols + col]);
+                double v = std::fabs(arr[r * cols + col]);
                 if (v > best_abs) { best_abs = v; best = r; }
             }
-            if (best_abs <= tol) {                  // в столбце нет ведущего, остатки зануляем
-                for (size_t r = rank; r < rows; ++r) a[r * cols + col] = 0.0;
+            // в столбце нет максимального элемента (он 0), остатки зануляем, идём к следующему столбцу
+            if (best_abs <= zero_bound) {   // zero_bound = граница нуля (какой элемент считаем нулём)
+                for (size_t r = rank; r < rows; ++r) arr[r * cols + col] = 0.0;
                 continue;
             }
-            double* pivot_row = a + rank * cols;
+            // строка с максимальным элементом (мо умолчанию текущая)
+            double* pivot_row = arr + rank * cols;
             if (best != rank) {
-                std::swap_ranges(pivot_row, pivot_row + cols, a + best * cols);
+                // меняем местами строку [pivot_row; pivot_row+cols) и
+                // [arr + best*cols;  arr + best*cols + pivot_row + cols)
+                std::swap_ranges(pivot_row, pivot_row + cols, arr + best * cols);
                 odd_swaps = !odd_swaps;
             }
+
+            // зануляем все элементы ниже главного значения (вычитаем главную строку)
             const double pivot = pivot_row[col];
             for (size_t r = rank + 1; r < rows; ++r) {
-                double* row = a + r * cols;
-                double factor = row[col] / pivot;
-                if (factor == 0.0) continue;
-                row[col] = 0.0;                     // точный ноль, а не 1e-17
+                double* down = arr + r * cols;
+                double factor = down[col] / pivot;
+
+                // если в этой строке и так 0 под главным, то цикл далее можем вообще не делать
+                // (тут не zero_bound т.к. factor может быть очень мелким, но элемент матрицы большим
+                // и в теории они могут друг друга компенсировать)
+                if (factor == 0.0)
+                    // down[col] уже = 0.0
+                    continue;
+
+                // вычитаем главную строку
+                down[col] = 0.0;
                 for (size_t c = col + 1; c < cols; ++c)
-                    row[c] -= factor * pivot_row[c];
+                    down[c] -= factor * pivot_row[c];
             }
             ++rank;
         }
@@ -70,22 +86,33 @@ namespace {
 
     // обратный ход: идём снизу вверх, делаем ведущий элемент строки единицей
     // и зануляем столбец над ним. ожидает ступенчатый вид (результат forward_pass)
-    void backward_pass(double* a, size_t rows, size_t cols, double tol) noexcept {
-        for (size_t r = std::min(rows, cols); r-- > 0; ) {  // строки >= cols в ступенчатом виде нулевые
-            double* row = a + r * cols;
-            size_t p = r;                                   // ведущий в строке r не может быть левее столбца r
-            while (p < cols && std::fabs(row[p]) <= tol) ++p;
-            if (p == cols) continue;                        // нулевая строка
-
+    void backward_pass(double* arr, size_t rows, size_t cols, double zero_bound) noexcept {
+        for (size_t r = std::min(rows, cols); r-- > 0;) {  // строки >= cols в ступенчатом виде нулевые
+            // выбираем главное значение главной строки
+            double* row = arr + r * cols;
+            size_t p = r;  // ведущий в строке r не может быть левее столбца r
+            while (p < cols && std::fabs(row[p]) <= zero_bound) ++p;
+            if (p == cols) continue;   // нулевая строка
             const double pivot = row[p];
+
+            // делим строку на главное значение
             for (size_t c = p + 1; c < cols; ++c)
-                if (row[c] != 0.0) row[c] /= pivot;         // иначе 0 / (отрицательное) даёт -0 в выводе
+                if (std::fabs(row[c]) > zero_bound) row[c] /= pivot;
             row[p] = 1.0;
 
+            // зануляем столбец выше главного значения
             for (size_t k = 0; k < r; ++k) {
-                double* up = a + k * cols;
+                double* up = arr + k * cols;
                 double factor = up[p];
-                if (factor == 0.0) continue;
+
+                // если в этой строке и так 0 под главным, то цикл далее можем вообще не делать
+                // (тут не zero_bound т.к. factor может быть очень мелким, но элемент матрицы большим
+                // и в теории они могут друг друга компенсировать)
+                if (factor == 0.0)
+                    // up[p] уже = 0.0
+                    continue;
+
+                // вычитаем главную строку
                 up[p] = 0.0;
                 for (size_t c = p + 1; c < cols; ++c)
                     up[c] -= factor * row[c];
@@ -118,23 +145,25 @@ double Matrix::trace() const noexcept {
     return sum;
 }
 
+// приводим к ступенчатому виду (гауссом) потом умножаем диагональные элементы
 double Matrix::det() const {
     if (_rows != _columns)
         throw MatrixMustBeSquared();
-    Matrix tmp(*this);                              // работаем с копией, this не меняем
+    Matrix temp(*this);  // работаем с копией, this не меняем
     bool odd_swaps = false;
-    size_t rank = forward_pass(tmp._data_ptr, _rows, _columns,
+    size_t rank = forward_pass(temp._data_ptr, _rows, _columns,
                                zero_tolerance(_data_ptr, size()), odd_swaps);
-    if (rank < _rows) return 0.0;                   // вырожденная
+    if (rank < _rows) return 0.0; // вырожденная
 
-    double result = odd_swaps ? -1.0 : 1.0;         // каждая перестановка строк меняет знак
+    double result = odd_swaps ? -1.0 : 1.0; // каждая перестановка строк меняет знак
+    // произведение диагональных элем
     for (size_t i = 0; i < _rows; ++i)
-        result *= tmp._data_ptr[i * (_columns + 1)];
+        result *= temp(i, i);
     return result;
 }
 
 size_t Matrix::rank() const {
-    Matrix tmp(*this);
+    Matrix tmp(*this);  // главное this случайно не поменять
     bool odd_swaps = false;
     return forward_pass(tmp._data_ptr, _rows, _columns,
                         zero_tolerance(_data_ptr, size()), odd_swaps);
@@ -157,6 +186,14 @@ Matrix& Matrix::gauss_backward() {
 // после reshape содержимое не определено (по заданию старые элементы можно не сохранять),
 // поэтому новую память не зануляем, (это экономит проход по всему массиву)
 void Matrix::reshape(size_t rows, size_t columns) {
+    if (rows == 0 && columns == 0) {
+        clear();
+        return;
+    }
+    else if (rows == 0 && columns != 0 || rows != 0 && columns == 0) {
+        throw InvalidShape("число строк или столбцов = 0 при ненулевом числе другого");
+    }
+
     size_t n = _checked_size(rows, columns);
     if (n > _capacity)
         _reallocate(n);

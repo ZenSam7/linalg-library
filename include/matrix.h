@@ -8,7 +8,7 @@ using std::ostream;
 
 
 namespace linalg {
-    static constexpr double DOUBLE_EPSILON = 1e-9;
+    inline constexpr double DOUBLE_EPSILON = 1e-9;
 
     class Matrix {
     private:
@@ -27,7 +27,7 @@ namespace linalg {
 
         Matrix();
         ~Matrix(); // ← один по жизни
-        // inline explicit для перегрузки значением по умолчанию columns=1
+        // explicit для перегрузки значением по умолчанию columns=1
         inline explicit Matrix(size_t rows) : Matrix(rows, 1) {};
         Matrix(size_t rows, size_t columns);
         Matrix(const Matrix& matrix); // копирования

@@ -1,4 +1,4 @@
-#include <matrix.h>
+#include "matrix.h"
 #include <exceptions.h>
 #include <vector>
 #include <sstream>
