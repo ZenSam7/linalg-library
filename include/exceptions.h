@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <string>
 
 namespace {
     inline std::string put_description(const std::string& message, const std::string& description = "") {

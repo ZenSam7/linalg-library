@@ -1,6 +1,8 @@
 #include "matrix.h"
-#include <exceptions.h>
+#include "exceptions.h"
 #include <limits>
+#include <algorithm>
+#include <utility>
 
 using linalg::Matrix;
 
@@ -47,7 +49,11 @@ size_t Matrix::_checked_size(size_t rows, size_t columns) {
 }
 
 Matrix::Matrix(size_t rows, size_t columns) {
+    if (rows == 0 && columns != 0 || rows != 0 && columns == 0) {
+        throw InvalidShape("число строк или столбцов = 0 при ненулевом числе другого");
+    }
     size_t n = _checked_size(rows, columns);
+
     if (n) _data_ptr = new double[n]();  // () = value-init, т.е. нули
     // поля меняются только после успешного new
     _rows = rows;

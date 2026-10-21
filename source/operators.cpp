@@ -1,8 +1,10 @@
 #include "matrix.h"
-#include <exceptions.h>
+#include "exceptions.h"
 #include <vector>
 #include <sstream>
 #include <cmath>
+#include <algorithm>
+#include <string>
 
 using linalg::Matrix;
 using linalg::DOUBLE_EPSILON;
@@ -121,7 +123,7 @@ namespace linalg {
                     to_print << ' ';
                 to_print << cells[idx];
             }
-            to_print << '|' << '\n';
+            to_print << "|\n";
         }
         return to_print;
     }

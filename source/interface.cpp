@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 using linalg::Matrix;
 using linalg::DOUBLE_EPSILON;
@@ -254,6 +255,7 @@ namespace linalg {
 
     // транспонирование блоками 32x32: так и чтение, и запись остаются в кэше
     // (наивный вариант на больших матрицах пишет в память с шагом rows и постоянно мажет мимо кэша)
+    // (каждая строка матрицы загружается в кэш не вся, а по кэш-линиям (по 64 байта))
     Matrix transpose(const Matrix& matrix) {
         constexpr size_t block = 32;
         const size_t rows = matrix.rows(), cols = matrix.columns();
@@ -262,10 +264,13 @@ namespace linalg {
 
         const double* src = matrix.begin();
         double* dst = result.begin();
+
+        // берём 1 блок...
         for (size_t i_begin = 0; i_begin < rows; i_begin += block) {
             const size_t i_end = std::min(i_begin + block, rows);
             for (size_t j_begin = 0; j_begin < cols; j_begin += block) {
                 const size_t j_end = std::min(j_begin + block, cols);
+                // ...и этот 1 блок копируем в симметричный (относ Глав Диаг) участок dst
 
                 // копируем элемент строки в столбец dst
                 for (size_t i = i_begin; i < i_end; ++i)
