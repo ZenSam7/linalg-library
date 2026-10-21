@@ -78,8 +78,11 @@ namespace linalg {
 
         Matrix& operator=(const Matrix& other); // присваивание копирующее → потенциальный bad_alloc
         Matrix& operator=(     Matrix&& other) noexcept; // перемещающее присваивание
+
+        // у константного объекта можно вызвать только константные методы, поэтому 2 реализации
               double& operator()(size_t row, size_t col)      ;
         const double& operator()(size_t row, size_t col) const;  // в return также может быть double
+
         // std::ostream& не const т.к. внутри него буфер
         friend std::ostream& operator<<(std::ostream& to_print, const Matrix& matrix);
 
@@ -98,7 +101,7 @@ namespace linalg {
 
         friend Matrix operator*(const Matrix& matrix1, const Matrix& matrix2);
         friend Matrix operator*(const Matrix& matrix, double scalar)
-            { Matrix tmp(matrix); return tmp * scalar; };  // реализуем умножение на скаляр только 1 раз
+            { Matrix tmp(matrix); tmp *= scalar; return tmp; };  // реализуем умножение на скаляр только 1 раз
         friend Matrix operator*(double scalar, const Matrix& matrix) { return matrix * scalar; };
         Matrix& operator*=(const Matrix& other) { return *this = (*this) * other; };
         Matrix& operator*=(double scalar);
