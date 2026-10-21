@@ -48,6 +48,8 @@ double& Matrix::operator()(size_t row, size_t col) {
 /*      арифметика (методы)      */
 
 namespace linalg {
+    // уже пространство глобальных функций linalg
+
     Matrix Matrix::operator-() const {
         Matrix result;
         result.reshape(_rows, _columns); // без зануления, всё равно перезапишем
@@ -122,28 +124,6 @@ namespace linalg {
             to_print << '|' << '\n';
         }
         return to_print;
-    }
-
-    Matrix operator+(const Matrix& matrix1, const Matrix& matrix2) {
-        require_same_shape(matrix1, matrix2);
-        Matrix result;
-        result.reshape(matrix1.rows(), matrix1.columns());
-        double* dst = result.begin();
-        const double* a = matrix1.begin();
-        const double* b = matrix2.begin();
-        for (size_t i = 0, n = result.size(); i < n; ++i)
-            dst[i] = a[i] + b[i];
-        return result;
-    }
-
-    Matrix operator*(const Matrix& matrix, double scalar) {
-        Matrix result;
-        result.reshape(matrix.rows(), matrix.columns());
-        double* dst = result.begin();
-        const double* src = matrix.begin();
-        for (size_t i = 0, n = result.size(); i < n; ++i)
-            dst[i] = src[i] * scalar;
-        return result;
     }
 
     // порядок циклов i-k-j: внутренний цикл идёт подряд по строкам matrix2 и result,

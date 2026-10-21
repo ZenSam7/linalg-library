@@ -85,18 +85,20 @@ namespace linalg {
 
         // арифметика
         Matrix operator+() const { return *this; };
-        friend Matrix operator+(const Matrix& matrix1, const Matrix& matrix2);
+        friend Matrix operator+(const Matrix& matrix1, const Matrix& matrix2)
+                { Matrix tmp(matrix1); tmp += matrix2; return tmp; };  // реализуем сложение только 1 раз (+=)
         Matrix& operator+=(const Matrix& other);
         // "{return *this = *this+other;};" создаст временную матрицу и потом сделает
         // перемещение через "=". аналогично для -= и *=scalar
-        // , но вот для *=matrix временная матрица неизбежна, так что её можно оставить
+        // , но вот для *=matrix временная матрица неизбежна, так что подобную реализацию можно оставить
 
         Matrix operator-() const;
         friend Matrix operator-(const Matrix& matrix1, const Matrix& matrix2) { return matrix1 + (-matrix2);};
         Matrix& operator-=(const Matrix& other);
 
         friend Matrix operator*(const Matrix& matrix1, const Matrix& matrix2);
-        friend Matrix operator*(const Matrix& matrix, double scalar);
+        friend Matrix operator*(const Matrix& matrix, double scalar)
+            { Matrix tmp(matrix); return tmp * scalar; };  // реализуем умножение на скаляр только 1 раз
         friend Matrix operator*(double scalar, const Matrix& matrix) { return matrix * scalar; };
         Matrix& operator*=(const Matrix& other) { return *this = (*this) * other; };
         Matrix& operator*=(double scalar);
