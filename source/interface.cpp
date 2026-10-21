@@ -153,6 +153,9 @@ double Matrix::trace() const noexcept {
 double Matrix::det() const {
     if (_rows != _columns)
         throw MatrixMustBeSquared();
+    if (empty())
+        return 0.0;
+
     Matrix temp(*this);  // работаем с копией, this не меняем
     bool odd_swaps = false;
     size_t rank = forward_pass(temp._data_ptr, _rows, _columns,
@@ -221,6 +224,7 @@ void Matrix::shrink_to_fit() {
 void Matrix::clear() {
     _rows = 0;
     _columns = 0;
+    // size = 0
 }
 
 void Matrix::swap(Matrix& other) noexcept {

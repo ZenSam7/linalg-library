@@ -28,7 +28,7 @@ namespace linalg {
         Matrix();
         ~Matrix(); // ← один по жизни
         // explicit для перегрузки значением по умолчанию columns=1
-        inline explicit Matrix(size_t rows) : Matrix(rows, 1) {};
+        inline explicit Matrix(size_t rows) : Matrix(rows, rows?1:0) {};
         Matrix(size_t rows, size_t columns);
         Matrix(const Matrix& matrix); // копирования
         Matrix(     Matrix&& matrix) noexcept; // перемещения
@@ -40,7 +40,7 @@ namespace linalg {
         /*      api      */
 
         // доступ к полям, для согласованности (хоть и в inline необходимости и нету)
-        inline bool    empty()       const noexcept { return size() == 0;};
+        inline bool    empty()       const noexcept { return size() == 0;}; // когда только 1 множитель == 0 невозможно
         inline size_t  rows()        const noexcept { return _rows; };
         inline size_t  columns()     const noexcept { return _columns; }
         inline size_t  capacity()    const noexcept { return _capacity; }

@@ -87,6 +87,10 @@ Matrix::Matrix(std::initializer_list<double> list) {
         _data_ptr = new double[n];
         std::copy(list.begin(), list.end(), _data_ptr);
     }
+    else {
+        clear();
+        return;
+    }
     _rows = n; // столбец
     _columns = 1;
     _capacity = n;
@@ -95,6 +99,11 @@ Matrix::Matrix(std::initializer_list<double> list) {
 Matrix::Matrix(std::initializer_list<std::initializer_list<double>> list) {
     size_t rows = list.size();
     size_t columns = rows ? list.begin()->size() : 0;
+    if (columns == 0 || rows == 0) {
+        clear();
+        return;
+    }
+
     for (const auto& row : list)    // сначала проверка, потом выделение памяти
         if (row.size() != columns)
             throw InvalidShape("строки в списке инициализации разной длины");
