@@ -100,7 +100,7 @@ namespace {
 
             // делим строку на главное значение
             for (size_t c = p + 1; c < cols; ++c)
-                if (std::fabs(row[c]) > zero_bound) row[c] /= pivot;
+                if (row[c] != 0.0) row[c] /= pivot;
             row[p] = 1.0;
 
             // зануляем столбец выше главного значения
