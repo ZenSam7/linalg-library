@@ -59,10 +59,10 @@ namespace linalg {
         void swap(Matrix& matrix2) noexcept; // метод
 
         // всякого рода функции
-        double norm()  const noexcept;
-        double trace() const noexcept;
-        double det()   const; // не noexcept т.к. будет создана копия матрицы → потенциальный bad_alloc
-        size_t rank()  const; // не noexcept т.к. будет создана копия матрицы → потенциальный bad_alloc
+        double norm()  const;
+        double trace() const;
+        double det()   const;
+        size_t rank()  const;
         Matrix& gauss_forward ();
         Matrix& gauss_backward();
         // этим ребятам ↓ приватные поля не нужны, но для сохранения стиля пусть будут friend

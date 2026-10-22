@@ -33,3 +33,8 @@ struct OutOfMatrix : std::runtime_error {
     explicit OutOfMatrix(const std::string& description = "")
             : std::runtime_error(put_description("выход за пределы матрицы", description)) {};
 };
+
+struct EmptyMatrix : std::runtime_error {
+    explicit EmptyMatrix(const std::string& description = "")
+            : std::runtime_error(put_description("матрица без строк и столбцов", description)) {};
+};

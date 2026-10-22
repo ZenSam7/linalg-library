@@ -128,7 +128,10 @@ namespace {
 /*      вычислительные методы      */
 
 // sqrt(сумма квадратов)
-double Matrix::norm() const noexcept {
+double Matrix::norm() const {
+    if (empty())
+        throw EmptyMatrix();
+
     double sum = 0.0;
     for (double p : *this)
         sum += p * p;
@@ -141,7 +144,10 @@ double Matrix::norm() const noexcept {
 
 // для неквадратной матрицы считаем сумму a_ii по min(rows, columns) элементам
 // (так не нужно бросать исключение, а метод остаётся noexcept)
-double Matrix::trace() const noexcept {
+double Matrix::trace() const {
+    if (empty())
+        throw EmptyMatrix();
+
     size_t n = std::min(_rows, _columns);
     double sum = 0.0;
     for (size_t i = 0; i < n; ++i)
@@ -154,7 +160,7 @@ double Matrix::det() const {
     if (_rows != _columns)
         throw MatrixMustBeSquared();
     if (empty())
-        return 0.0;
+        throw EmptyMatrix();
 
     Matrix temp(*this);  // работаем с копией, this не меняем
     bool odd_swaps = false;
